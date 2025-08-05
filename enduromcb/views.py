@@ -140,16 +140,17 @@ def resultados(request):
             continue
 
         primeira_volta = voltas.first().tempo_volta
-
         total_pontos = 0
+
         for v in voltas[1:]:
             dif = v.tempo_volta - primeira_volta
-            dif_ms = int(dif.total_seconds() * 1000)
+            segundos_dif = abs(dif.total_seconds())
+            segundos_arredondado = round(segundos_dif)
 
-            if dif_ms > 0:
-                pontos = round(dif_ms / 1000)  # atrasado = 1 ponto por segundo
-            elif dif_ms < 0:
-                pontos = round(abs(dif_ms) / 1000) * 3  # adiantado = 3 pontos por segundo
+            if dif.total_seconds() < 0:
+                pontos = segundos_arredondado * 3  # adiantado
+            elif dif.total_seconds() > 0:
+                pontos = segundos_arredondado * 1  # atrasado
             else:
                 pontos = 0
 
