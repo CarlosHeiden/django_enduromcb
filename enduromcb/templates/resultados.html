@@ -31,6 +31,9 @@
                     <th>Número</th>
                     <th>Categoria</th>
                     <th>Pontos Perdidos</th>
+                    {% if resultados_gerais|length > 1 and resultados_gerais|dictsort:"pontos_perdidos"|length != resultados_gerais|length %}
+                        <th>Critério de Desempate</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -44,6 +47,11 @@
                     <td>{{ r.numero_piloto }}</td>
                     <td>{{ r.piloto.categoria }}</td>
                     <td>{{ r.pontos_perdidos }}</td>
+                    {% if r.exibir_criterio %}
+                        <td>{{ r.criterio_desempate }}</td>
+                    {% elif resultados_gerais|length > 1 and r.mesmo_pontuacao %}
+                        <td>{{ r.criterio_desempate }}</td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>

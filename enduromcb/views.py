@@ -130,6 +130,8 @@ def save_dados_resultados(agora_str, piloto):
         tempo_total=tempo_total_final + tempo_volta_real,
     )
 
+from datetime import timedelta
+
 def resultados(request):
     resultados_gerais = []
 
@@ -140,17 +142,24 @@ def resultados(request):
             continue
 
         primeira_volta = voltas.first().tempo_volta
-        total_pontos = 0
 
-        for v in voltas[1:]:
+        total_pontos = 0
+        tempo_real_total = timedelta(0)
+
+        for i, v in enumerate(voltas):
+            tempo_real_total += v.tempo_volta
+
+            if i == 0:
+                continue  # não calcula pontos para a volta 1
+
             dif = v.tempo_volta - primeira_volta
-            segundos_dif = abs(dif.total_seconds())
-            segundos_arredondado = round(segundos_dif)
+            segundos = abs(dif.total_seconds())
+            segundos_arredondado = round(segundos)
 
             if dif.total_seconds() < 0:
-                pontos = segundos_arredondado * 3  # adiantado
+                pontos = segundos_arredondado * 3
             elif dif.total_seconds() > 0:
-                pontos = segundos_arredondado * 1  # atrasado
+                pontos = segundos_arredondado * 1
             else:
                 pontos = 0
 
@@ -160,14 +169,29 @@ def resultados(request):
             'piloto': piloto,
             'numero_piloto': piloto.numero_piloto,
             'pontos_perdidos': total_pontos,
+            'tempo_real': tempo_real_total,
         })
 
-    resultados_gerais.sort(key=lambda x: x['pontos_perdidos'])
+    # Ordenar por pontos e depois por tempo real (critério de desempate)
+    resultados_gerais.sort(key=lambda x: (x['pontos_perdidos'], x['tempo_real']))
 
+    # Atribuir posição e detectar empates
     for pos, p in enumerate(resultados_gerais, start=1):
         p['position'] = pos
 
-    return render(request, 'resultados.html', {'resultados_gerais': resultados_gerais})
+    # Detectar se houve empate em pontos perdidos
+    houve_empate = False
+    for i in range(1, len(resultados_gerais)):
+        if resultados_gerais[i]['pontos_perdidos'] == resultados_gerais[i - 1]['pontos_perdidos']:
+            houve_empate = True
+            break
+
+    context = {
+        'resultados_gerais': resultados_gerais,
+        'houve_empate': houve_empate,
+    }
+
+    return render(request, 'resultados.html', context)
 
 
 def resultados_por_categorias(request):
