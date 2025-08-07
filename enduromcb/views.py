@@ -6,6 +6,9 @@ from django.http import HttpResponse
 from .models import Piloto, RegistrarLargada, RegistrarChegada, Resultados, Categoria
 from .forms import RegistrarLargadaForm, RegistrarChegadaForm, CadastrarPilotoForm
 from .funcoes import formatar_timedelta_com_sinal
+from django.template.loader import render_to_string
+from weasyprint import HTML
+import tempfile
 
 
 def cadastrar_piloto(request):
@@ -465,3 +468,239 @@ def debug_totais(request):
 
     html += "</table>"
     return HttpResponse(format_html(html))
+
+def resumo_corrida(request):
+    resumo = []
+
+    for piloto in Piloto.objects.all():
+        resultados = Resultados.objects.filter(numero_piloto=piloto.numero_piloto).order_by('id_volta')
+        if not resultados.exists():
+            continue
+
+        primeira_volta = resultados.first().tempo_volta
+        total_voltas = resultados.count()
+        tempo_total_real = timedelta(0)
+        total_pontos = 0
+
+        for idx, res in enumerate(resultados):
+            tempo_volta = res.tempo_volta
+            tempo_total_real += tempo_volta
+
+            if idx == 0:
+                continue  # ignora volta 1 para pontuação
+
+            dif = tempo_volta - primeira_volta
+            segundos = abs(dif.total_seconds())
+            segundos_arredondado = round(segundos)
+
+            if dif.total_seconds() < 0:
+                pontos = segundos_arredondado * 3
+            elif dif.total_seconds() > 0:
+                pontos = segundos_arredondado * 1
+            else:
+                pontos = 0
+
+            total_pontos += pontos
+
+        resumo.append({
+            'nome': piloto.nome,
+            'numero': piloto.numero_piloto,
+            'categoria': piloto.categoria,
+            'voltas': total_voltas,
+            'pontos': total_pontos,
+            'tempo_real': tempo_total_real,
+        })
+
+    return render(request, 'resumo_corrida.html', {'resumo': resumo})
+
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+import os
+os.add_dll_directory(r"C:\Program Files\GTK3-Runtime Win64\bin")
+from weasyprint import HTML
+
+from weasyprint import HTML
+from datetime import timedelta
+from .models import Piloto, Resultados
+
+def formatar_timedelta_com_sinal(td):
+    total_seconds = td.total_seconds()
+    sinal = '+' if total_seconds > 0 else '-' if total_seconds < 0 else ''
+    td_abs = abs(td)
+    return '{}{:02d}:{:02d}:{:02d}.{:03d}'.format(
+        sinal,
+        int(td_abs.total_seconds() // 3600),
+        int((td_abs.total_seconds() % 3600) // 60),
+        int(td_abs.total_seconds() % 60),
+        int((td_abs.total_seconds() % 1) * 1000)
+    )
+
+def exportar_resultado_piloto_pdf(request):
+    piloto_detail = []
+
+    for piloto in Piloto.objects.all():
+        resultados = Resultados.objects.filter(numero_piloto=piloto.numero_piloto).order_by('id_volta')
+        if not resultados.exists():
+            continue
+
+        primeira_volta = resultados.first().tempo_volta
+        tempo_total_dif_ms = 0
+        tempo_real_total = timedelta(0)
+        total_pontos = 0
+        volta_detail = []
+
+        for res in resultados:
+            tempo_volta = res.tempo_volta
+            tempo_real_total += tempo_volta
+
+            tempo_volta_str = '{:02d}:{:02d}:{:02d}.{:03d}'.format(
+                int(tempo_volta.total_seconds() // 3600),
+                int((tempo_volta.total_seconds() % 3600) // 60),
+                int(tempo_volta.total_seconds() % 60),
+                int((tempo_volta.total_seconds() % 1) * 1000)
+            )
+
+            dif = tempo_volta - primeira_volta
+            if res != resultados.first():
+                tempo_total_dif_ms += int(abs(dif.total_seconds()) * 1000)
+
+            dif_volta1_str = formatar_timedelta_com_sinal(dif)
+
+            status = ''
+            pontos = 0
+            if res != resultados.first():
+                segundos_arredondado = round(abs(dif.total_seconds()))
+                if dif.total_seconds() < 0:
+                    status = 'adiantado'
+                    pontos = segundos_arredondado * 3
+                elif dif.total_seconds() > 0:
+                    status = 'atrasado'
+                    pontos = segundos_arredondado * 1
+                total_pontos += pontos
+
+            volta_detail.append({
+                'id_volta': res.id_volta,
+                'horario_largada': res.horario_largada.strftime('%H:%M:%S.%f')[:-3],
+                'horario_chegada': res.horario_chegada.strftime('%H:%M:%S.%f')[:-3],
+                'tempo_volta': tempo_volta_str,
+                'dif_volta1_str': dif_volta1_str,
+                'status': status,
+                'pontos': pontos,
+            })
+
+        total_dif = timedelta(milliseconds=tempo_total_dif_ms)
+        tempo_total_str = '{:02d}:{:02d}:{:02d}.{:03d}'.format(
+            int(total_dif.total_seconds() // 3600),
+            int((total_dif.total_seconds() % 3600) // 60),
+            int(total_dif.total_seconds() % 60),
+            int((total_dif.total_seconds() % 1) * 1000)
+        )
+
+        tempo_real_str = '{:02d}:{:02d}:{:02d}.{:03d}'.format(
+            int(tempo_real_total.total_seconds() // 3600),
+            int((tempo_real_total.total_seconds() % 3600) // 60),
+            int(tempo_real_total.total_seconds() % 60),
+            int((tempo_real_total.total_seconds() % 1) * 1000)
+        )
+
+        piloto_detail.append({
+            'piloto': piloto,
+            'numero_piloto': piloto.numero_piloto,
+            'voltas': volta_detail,
+            'tempo_total': tempo_total_str,
+            'tempo_real': tempo_real_str,
+            'total_pontos': total_pontos,
+        })
+
+    html_string = render_to_string('resultado_piloto.html', {'piloto_detail': piloto_detail})
+    pdf_file = HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
+
+    response = HttpResponse(pdf_file, content_type='application/pdf')
+    response['Content-Disposition'] = 'inline; filename="resultados_por_piloto.pdf"'
+    return response
+
+
+
+from django.http import FileResponse
+from django.template.loader import render_to_string
+from weasyprint import HTML, CSS
+from datetime import timedelta
+import os
+from .models import Piloto, Resultados
+
+def formatar_timedelta_com_sinal(td):
+    total_seconds = td.total_seconds()
+    sinal = '+' if total_seconds > 0 else '-' if total_seconds < 0 else ''
+    td_abs = abs(td)
+    return '{}{:02d}:{:02d}:{:02d}.{:03d}'.format(
+        sinal,
+        int(td_abs.total_seconds() // 3600),
+        int((td_abs.total_seconds() % 3600) // 60),
+        int(td_abs.total_seconds() % 60),
+        int((td_abs.total_seconds() % 1) * 1000)
+    )
+
+def exportar_resultados_pdf(request):
+    resultados_gerais = []
+
+    for piloto in Piloto.objects.all():
+        voltas = Resultados.objects.filter(numero_piloto=piloto.numero_piloto).order_by('id_volta')
+        if voltas.count() <= 1:
+            continue
+
+        primeira_volta = voltas.first().tempo_volta
+        total_pontos = 0
+        tempo_real_total = timedelta(0)
+
+        for i, v in enumerate(voltas):
+            tempo_real_total += v.tempo_volta
+            if i == 0:
+                continue
+
+            dif = v.tempo_volta - primeira_volta
+            segundos = abs(dif.total_seconds())
+            segundos_arredondado = round(segundos)
+
+            if dif.total_seconds() < 0:
+                pontos = segundos_arredondado * 3
+            elif dif.total_seconds() > 0:
+                pontos = segundos_arredondado * 1
+            else:
+                pontos = 0
+
+            total_pontos += pontos
+
+        resultados_gerais.append({
+            'piloto': piloto,
+            'numero_piloto': piloto.numero_piloto,
+            'pontos_perdidos': total_pontos,
+            'tempo_real': tempo_real_total,
+        })
+
+    resultados_gerais.sort(key=lambda x: (x['pontos_perdidos'], x['tempo_real']))
+
+    for pos, p in enumerate(resultados_gerais, start=1):
+        p['position'] = pos
+
+    houve_empate = any(
+        resultados_gerais[i]['pontos_perdidos'] == resultados_gerais[i - 1]['pontos_perdidos']
+        for i in range(1, len(resultados_gerais))
+    )
+
+    for i, r in enumerate(resultados_gerais):
+        r['criterio_desempate'] = str(r['tempo_real'])
+        r['exibir_criterio'] = houve_empate
+        r['mesmo_pontuacao'] = (
+            i > 0 and r['pontos_perdidos'] == resultados_gerais[i - 1]['pontos_perdidos']
+        )
+
+    html_string = render_to_string('resultados.html', {
+        'resultados_gerais': resultados_gerais,
+        'houve_empate': houve_empate,
+        'data_geracao': datetime.now().strftime('%d/%m/%Y %H:%M'),
+    })
+
+    caminho_pdf = os.path.join(r'E:\carlos\python\django_enduro_mcb\enduromcb\pdfs', 'classificacao_geral.pdf')
+    HTML(string=html_string).write_pdf(caminho_pdf)
+
+    return FileResponse(open(caminho_pdf, 'rb'), content_type='application/pdf')

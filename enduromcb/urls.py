@@ -18,5 +18,12 @@ urlpatterns = [
     path('debug_totais/', views.debug_totais, name='debug_totais'),
     path('debug_tempos/', views.debug_tempos, name='debug_tempos'),
 
+    path('resumo_corrida/', views.resumo_corrida, name='resumo_corrida'),
+
+    path('exportar-resultados-pdf/', views.exportar_resultados_pdf, name='exportar_resultados_pdf'),
+    path('exportar-resultado-piloto/', views.exportar_resultado_piloto_pdf, name='exportar_resultado_piloto'),
+
+
+
     
 ]
