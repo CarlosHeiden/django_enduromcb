@@ -16,3 +16,7 @@ class CadastrarPilotoForm(forms.ModelForm):
     class Meta:
         model = Piloto
         fields = ['nome', 'numero_piloto', 'moto', 'categoria']
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['moto'].required = False
