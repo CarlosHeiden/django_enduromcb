@@ -12,11 +12,9 @@ class Categoria(models.Model):
 class Piloto(models.Model):
     nome = models.CharField(max_length=100)
     numero_piloto = models.IntegerField(unique=True)
-    moto = models.CharField(max_length=100)
+    moto = models.CharField(max_length=100, default='####', blank=True)
     categoria = models.ForeignKey(Categoria, on_delete=models.CASCADE, related_name='pilotos')
 
-    def __str__(self):
-        return f'{self.nome} ({self.numero_piloto})'
 
 
 class RegistrarLargada(models.Model):

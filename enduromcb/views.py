@@ -1,15 +1,18 @@
-from django.shortcuts import render, redirect, get_object_or_404
+from pyexpat.errors import messages
 from django.contrib import messages
 from django.db.models import Q
-from datetime import datetime, timedelta, date
-from django.http import HttpResponse
-from .models import Piloto, RegistrarLargada, RegistrarChegada, Resultados, Categoria
-from .forms import RegistrarLargadaForm, RegistrarChegadaForm, CadastrarPilotoForm
-from .funcoes import formatar_timedelta_com_sinal
+from django.http import HttpResponse, FileResponse
+from django.utils.html import format_html
+from django.shortcuts import render, redirect
 from django.template.loader import render_to_string
-from weasyprint import HTML
-import tempfile
+from math import ceil
+from datetime import date, datetime, timedelta
+import os
+from enduromcb.forms import CadastrarPilotoForm, RegistrarChegadaForm, RegistrarLargadaForm
+from .models import Categoria, Piloto, RegistrarChegada, RegistrarLargada, Resultados
+from weasyprint import HTML, CSS
 
+os.add_dll_directory(r"C:\Program Files\GTK3-Runtime Win64\bin")
 
 def cadastrar_piloto(request):
     if request.method == 'POST':
@@ -22,6 +25,7 @@ def cadastrar_piloto(request):
 
             if Piloto.objects.filter(Q(nome=nome) | Q(numero_piloto=numero_piloto)).exists():
                 messages.error(request, 'Já existe um piloto com esse nome ou número.')
+                
             else:
                 Piloto.objects.create(
                     nome=nome,
@@ -35,7 +39,6 @@ def cadastrar_piloto(request):
         form = CadastrarPilotoForm()
 
     return render(request, 'cadastrar_piloto.html', {'form': form})
-
 
 def registrar_largada(request):
     if request.method == 'POST':
@@ -67,8 +70,6 @@ def registrar_largada(request):
 
     return render(request, 'registrar_largada.html', {'form': form})
 
-
-
 def registrar_chegada(request):
     if request.method == 'POST':
         form = RegistrarChegadaForm(request.POST)
@@ -98,7 +99,6 @@ def registrar_chegada(request):
         form = RegistrarChegadaForm()
 
     return render(request, 'registrar_chegada.html', {'form': form})
-
 
 def save_dados_resultados(agora_str, piloto):
     chegada_time = datetime.strptime(agora_str, '%H:%M:%S.%f').time()
@@ -132,8 +132,6 @@ def save_dados_resultados(agora_str, piloto):
         tempo_volta=tempo_volta_real,
         tempo_total=tempo_total_final + tempo_volta_real,
     )
-
-from datetime import timedelta
 
 def resultados(request):
     resultados_gerais = []
@@ -196,7 +194,6 @@ def resultados(request):
 
     return render(request, 'resultados.html', context)
 
-
 def resultados_por_categorias(request):
     categorias = Categoria.objects.all()
     resultados_por_categoria = {cat: [] for cat in categorias}
@@ -238,11 +235,7 @@ def resultados_por_categorias(request):
         {'resultados_por_categoria': resultados_por_categoria}
     )
 
-from math import ceil
 
-from datetime import timedelta
-from django.shortcuts import render
-from .models import Piloto, Resultados
 
 def formatar_timedelta_com_sinal(td):
     total_ms = td.total_seconds() * 1000
@@ -349,9 +342,6 @@ def exibir_pilotos(request):
         pilotos = Piloto.objects.all()
     return render(request, 'exibir_pilotos.html', {'pilotos': pilotos})
 
-from django.http import HttpResponse
-from django.utils.html import format_html
-
 def debug_tempos(request):
     dados = []
 
@@ -415,9 +405,6 @@ def debug_tempos(request):
 
     html += "</table>"
     return HttpResponse(format_html(html))
-
-from django.http import HttpResponse
-from django.utils.html import format_html
 
 def debug_totais(request):
     html = """
@@ -512,16 +499,6 @@ def resumo_corrida(request):
         })
 
     return render(request, 'resumo_corrida.html', {'resumo': resumo})
-
-from django.http import HttpResponse
-from django.template.loader import render_to_string
-import os
-os.add_dll_directory(r"C:\Program Files\GTK3-Runtime Win64\bin")
-from weasyprint import HTML
-
-from weasyprint import HTML
-from datetime import timedelta
-from .models import Piloto, Resultados
 
 def formatar_timedelta_com_sinal(td):
     total_seconds = td.total_seconds()
@@ -618,15 +595,6 @@ def exportar_resultado_piloto_pdf(request):
     response = HttpResponse(pdf_file, content_type='application/pdf')
     response['Content-Disposition'] = 'inline; filename="resultados_por_piloto.pdf"'
     return response
-
-
-
-from django.http import FileResponse
-from django.template.loader import render_to_string
-from weasyprint import HTML, CSS
-from datetime import timedelta
-import os
-from .models import Piloto, Resultados
 
 def formatar_timedelta_com_sinal(td):
     total_seconds = td.total_seconds()
