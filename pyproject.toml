@@ -4,9 +4,10 @@ version = "0.1.0"
 description = ""
 authors = ["Heiden <119899341+CarlosHeiden@users.noreply.github.com>"]
 readme = "README.md"
+package-mode = false  # <<< aqui desabilita o empacotamento
 
 [tool.poetry.dependencies]
-python = "^3.13"
+python = "^3.12"
 django = "^5.2.4"
 django-import-export = "^4.3.9"
 mysqlclient = "^2.2.7"

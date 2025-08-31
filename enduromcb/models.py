@@ -48,3 +48,22 @@ class Resultados(models.Model):
 
     def __str__(self):
         return f'{self.nome} ({self.numero_piloto})'
+    
+
+class OrdemLargada(models.Model):
+    piloto = models.OneToOneField(
+        Piloto,
+        on_delete=models.CASCADE,
+        related_name='ordem_largada',
+        verbose_name="Piloto"
+    )
+    posicao = models.IntegerField(unique=True, verbose_name="Posição de Largada")
+
+    class Meta:
+        ordering = ['posicao']
+        verbose_name = "Ordem de Largada"
+        verbose_name_plural = "Ordens de Largada"
+
+    def __str__(self):
+        return f"Posição {self.posicao} - {self.piloto.numero_piloto} - {self.piloto.nome}" 
+

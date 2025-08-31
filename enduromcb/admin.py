@@ -1,6 +1,21 @@
 from django.contrib import admin
 from import_export.admin import ExportMixin, ImportExportModelAdmin
-from .models import Categoria, Piloto, RegistrarLargada, RegistrarChegada, Resultados
+from .models import Categoria, Piloto, RegistrarLargada, RegistrarChegada, Resultados, OrdemLargada
+from .resources import OrdemLargadaResource
+
+
+
+@admin.register(OrdemLargada)
+class OrdemLargadaAdmin(ImportExportModelAdmin):
+    resource_class = OrdemLargadaResource
+    list_display = ('posicao', 'piloto', 'get_numero_piloto')
+    list_select_related = ('piloto',)
+    search_fields = ('posicao', 'piloto__numero_piloto', 'piloto__nome')
+    list_filter = ('piloto__categoria',) # Exemplo de filtro, se houver categorias
+
+    def get_numero_piloto(self, obj):
+        return obj.piloto.numero_piloto
+    get_numero_piloto.short_description = 'Número do Piloto'
 
 
 @admin.register(Categoria)

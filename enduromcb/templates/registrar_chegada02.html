@@ -1,0 +1,88 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Registrar Chegada - Enduro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Ajuste do CSS para o botão */
+        .btn-piloto {
+            /* Remove a largura fixa para que o Bootstrap a controle */
+            width: 100%; 
+            height: 100px;
+            font-size: 1.8rem;
+            white-space: normal; /* Permite que o texto quebre a linha se necessário */
+        }
+
+        /* Classes específicas para telas pequenas (celular) */
+        @media (max-width: 767.98px) {
+            .btn-piloto {
+                height: 200px; /* Altura maior para o celular */
+                font-size: 2.5rem; /* Fonte maior para o celular */
+            }
+        }
+
+        .footer-msg {
+            position: fixed;
+            bottom: 10px;
+            width: 100%;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: green;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="container text-center">
+    <h1 class="mb-4 text-center">Registrar Chegada</h1>
+
+    <div class="row row-cols-1 row-cols-md-6 g-4 d-flex justify-content-center">
+        {% for piloto in lista_pilotos %}
+            <div class="col d-flex justify-content-center">
+                <button class="btn btn-primary btn-piloto"
+                        data-id="{{ piloto.numero_piloto }}"
+                        onclick="registrarChegada(this)">
+                    {{ piloto.numero_piloto }} - {{ piloto.nome }}
+                </button>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div id="mensagem-sucesso" class="footer-msg" style="display:none;">
+    Largada registrada com sucesso!
+</div>
+
+<script>
+function registrarChegada(botao) {
+    botao.classList.remove('btn-primary');
+    botao.classList.add('btn-success');
+    const msg = document.getElementById('mensagem-sucesso');
+    msg.style.display = 'block';
+
+    fetch("{% url 'registrar_chegada02_json' %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify({ numero_piloto: botao.dataset.id })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            alert("Erro ao registrar Chegada: " + data.error);
+        }
+    })
+    .catch(err => {
+        alert("Erro na comunicação com o servidor.");
+        console.error(err);
+    });
+}
+</script>
+
+</body>
+</html>

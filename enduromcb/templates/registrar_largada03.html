@@ -1,0 +1,74 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Registrar Largada - Enduro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .btn-piloto {
+            width: 80%;
+            height: 200px;
+            font-size: 2.5rem;
+        }
+        .footer-msg {
+            position: fixed;
+            bottom: 10px;
+            width: 100%;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: green;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="container text-center">
+    <h1 class="mb-4 text-center">Registrar Largada</h1>
+
+    <div class="d-flex flex-column align-items-center">
+        {% for piloto in lista_pilotos %}
+            <button class="btn btn-primary btn-piloto mb-3"
+                    data-id="{{ piloto.numero_piloto }}"
+                    onclick="registrarLargada(this)">
+                {{ piloto.numero_piloto }} - {{ piloto.nome }}
+            </button>
+        {% endfor %}
+    </div>
+</div>
+
+<div id="mensagem-sucesso" class="footer-msg" style="display:none;">
+    Largada registrada com sucesso!
+</div>
+
+<script>
+function registrarLargada(botao) {
+    botao.classList.remove('btn-primary');
+    botao.classList.add('btn-success');
+    const msg = document.getElementById('mensagem-sucesso');
+    msg.style.display = 'block';
+
+    fetch("{% url 'registrar_largada03_json' %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify({ numero_piloto: botao.dataset.id })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            alert("Erro ao registrar largada: " + data.error);
+        }
+    })
+    .catch(err => {
+        alert("Erro na comunicação com o servidor.");
+        console.error(err);
+    });
+}
+</script>
+
+</body>
+</html>

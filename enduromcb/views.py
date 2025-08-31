@@ -1,16 +1,25 @@
 from pyexpat.errors import messages
 from django.contrib import messages
 from django.db.models import Q
-from django.http import HttpResponse, FileResponse
-from django.utils.html import format_html
+from django.http import HttpResponse, FileResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.template.loader import render_to_string
+from django.utils.html import format_html
+from django.utils.timezone import now
+from django.views.decorators.csrf import csrf_exempt
 from math import ceil
 from datetime import date, datetime, timedelta
+import json
 import os
 from enduromcb.forms import CadastrarPilotoForm, RegistrarChegadaForm, RegistrarLargadaForm
-from .models import Categoria, Piloto, RegistrarChegada, RegistrarLargada, Resultados
+from .models import Categoria, Piloto, RegistrarChegada, RegistrarLargada, Resultados, OrdemLargada
 from weasyprint import HTML, CSS
+
+
+
+#from .utils import save_dados_resultados  # se já tem essa função
+
+
 
 os.add_dll_directory(r"C:\Program Files\GTK3-Runtime Win64\bin")
 
@@ -249,8 +258,8 @@ def formatar_timedelta_com_sinal(td):
 
 def resultado_piloto(request):
     piloto_detail = []
-
-    for piloto in Piloto.objects.all():
+    pilotos = Piloto.objects.all().order_by('numero_piloto')
+    for piloto in pilotos:
         resultados = Resultados.objects.filter(numero_piloto=piloto.numero_piloto).order_by('id_volta')
         if not resultados.exists():
             continue
@@ -672,3 +681,153 @@ def exportar_resultados_pdf(request):
     HTML(string=html_string).write_pdf(caminho_pdf)
 
     return FileResponse(open(caminho_pdf, 'rb'), content_type='application/pdf')
+
+
+
+def registrar_largada03(request):
+    """
+    Exibe a lista de pilotos para largada. Se houver uma OrdemLargada, exibe nessa ordem.
+    Caso contrário, exibe todos os pilotos ordenados por número.
+    """
+    if OrdemLargada.objects.exists():
+        # Se houver ordem de largada, pegamos os pilotos na ordem correta
+        pilotos_ordenados = [item_ordem.piloto for item_ordem in OrdemLargada.objects.all().select_related('piloto').order_by('posicao')]
+    else:
+        # Se não houver, pegamos todos os pilotos ordenados pelo numero_piloto
+        pilotos_ordenados = Piloto.objects.all().order_by('numero_piloto')
+    
+    # Passamos sempre uma lista de objetos Piloto para o template
+    return render(request, 'registrar_largada03.html', {'lista_pilotos': pilotos_ordenados})
+
+def registrar_chegada03(request):
+    """
+    Exibe a lista de pilotos para chegada. Se houver uma OrdemLargada, exibe nessa ordem.
+    Caso contrário, exibe todos os pilotos ordenados por número.
+    """
+    if OrdemLargada.objects.exists():
+        # Se houver ordem de largada, pegamos os pilotos na ordem correta
+        # list comprehension para criar uma lista de objetos Piloto
+        pilotos_ordenados = [item_ordem.piloto for item_ordem in OrdemLargada.objects.all().select_related('piloto').order_by('posicao')]
+    else:
+        # Se não houver, pegamos todos os pilotos ordenados pelo numero_piloto
+        pilotos_ordenados = Piloto.objects.all().order_by('numero_piloto')
+    
+    # Passamos sempre uma lista de objetos Piloto para o template
+    return render(request, 'registrar_chegada03.html', {'lista_pilotos': pilotos_ordenados})
+
+
+
+def registrar_largada03_json(request):
+    """
+    Processa o registro de largada via AJAX.
+    (Esta view não precisa de mudanças, pois a lógica de busca do piloto é a mesma)
+    """
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            numero_piloto = data.get("numero_piloto")
+
+            if not numero_piloto:
+                return JsonResponse({"success": False, "error": "Número do piloto não fornecido."}, status=400)
+            
+            piloto = Piloto.objects.get(numero_piloto=numero_piloto)
+
+        except (json.JSONDecodeError, Piloto.DoesNotExist) as e:
+            return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+        agora = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+        RegistrarLargada.objects.create(
+            piloto=piloto,
+            horario_largada=agora
+        )
+
+        return JsonResponse({
+            "success": True,
+            "piloto": f"{piloto.numero_piloto} - {piloto.nome}",
+            "horario": agora
+        })
+
+    return JsonResponse({"success": False, "error": "Método de requisição inválido."}, status=405)
+
+
+def registrar_chegada03_json(request):
+    """
+    Processa o registro de chegada via AJAX.
+    (Esta view também não precisa de mudanças)
+    """
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            numero_piloto = data.get("numero_piloto")
+
+            if not numero_piloto:
+                return JsonResponse({"success": False, "error": "Número do piloto não fornecido."}, status=400)
+            
+            piloto = Piloto.objects.get(numero_piloto=numero_piloto)
+
+        except (json.JSONDecodeError, Piloto.DoesNotExist) as e:
+            return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+        agora = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+        RegistrarChegada.objects.create(
+            piloto=piloto,
+            horario_chegada=agora
+        )
+        save_dados_resultados(agora, piloto)
+
+        return JsonResponse({
+            "success": True,
+            "piloto": f"{piloto.numero_piloto} - {piloto.nome}",
+            "horario": agora
+        })
+
+    return JsonResponse({"success": False, "error": "Método de requisição inválido."}, status=405)
+
+def registrar_chegada02(request):
+    """
+    Exibe a lista de pilotos para chegada. Se houver uma OrdemLargada, exibe nessa ordem.
+    Caso contrário, exibe todos os pilotos ordenados por número.
+    """
+    if OrdemLargada.objects.exists():
+        # Se houver ordem de largada, pegamos os pilotos na ordem correta
+        # list comprehension para criar uma lista de objetos Piloto
+        pilotos_ordenados = [item_ordem.piloto for item_ordem in OrdemLargada.objects.all().select_related('piloto').order_by('posicao')]
+    else:
+        # Se não houver, pegamos todos os pilotos ordenados pelo numero_piloto
+        pilotos_ordenados = Piloto.objects.all().order_by('numero_piloto')
+    
+    # Passamos sempre uma lista de objetos Piloto para o template
+    return render(request, 'registrar_chegada02.html', {'lista_pilotos': pilotos_ordenados})
+
+def registrar_chegada02_json(request):
+    """
+    Processa o registro de chegada via AJAX.
+    (Esta view também não precisa de mudanças)
+    """
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            numero_piloto = data.get("numero_piloto")
+
+            if not numero_piloto:
+                return JsonResponse({"success": False, "error": "Número do piloto não fornecido."}, status=400)
+            
+            piloto = Piloto.objects.get(numero_piloto=numero_piloto)
+
+        except (json.JSONDecodeError, Piloto.DoesNotExist) as e:
+            return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+        agora = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+        RegistrarChegada.objects.create(
+            piloto=piloto,
+            horario_chegada=agora
+        )
+        save_dados_resultados(agora, piloto)
+
+        return JsonResponse({
+            "success": True,
+            "piloto": f"{piloto.numero_piloto} - {piloto.nome}",
+            "horario": agora
+        })
+
+    return JsonResponse({"success": False, "error": "Método de requisição inválido."}, status=405)

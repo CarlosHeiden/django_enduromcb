@@ -1,4 +1,4 @@
-## models.py
+#models.py
 
 from django.db import models
 from datetime import timedelta
@@ -14,11 +14,9 @@ class Categoria(models.Model):
 class Piloto(models.Model):
     nome = models.CharField(max_length=100)
     numero_piloto = models.IntegerField(unique=True)
-    moto = models.CharField(max_length=100)
+    moto = models.CharField(max_length=100, default='####', blank=True)
     categoria = models.ForeignKey(Categoria, on_delete=models.CASCADE, related_name='pilotos')
 
-    def __str__(self):
-        return f'{self.nome} ({self.numero_piloto})'
 
 
 class RegistrarLargada(models.Model):
@@ -52,39 +50,127 @@ class Resultados(models.Model):
 
     def __str__(self):
         return f'{self.nome} ({self.numero_piloto})'
+    
 
-## forms.py
-class CadastrarPilotoForm(forms.ModelForm):
-    categoria = forms.ModelChoiceField(queryset=Categoria.objects.all())
+class OrdemLargada(models.Model):
+    piloto = models.OneToOneField(
+        Piloto,
+        on_delete=models.CASCADE,
+        related_name='ordem_largada',
+        verbose_name="Piloto"
+    )
+    posicao = models.IntegerField(unique=True, verbose_name="Posição de Largada")
 
     class Meta:
-        model = Piloto
-        fields = ['nome', 'numero_piloto', 'moto', 'categoria']
+        ordering = ['posicao']
+        verbose_name = "Ordem de Largada"
+        verbose_name_plural = "Ordens de Largada"
 
-## views.py
+    def __str__(self):
+        return f"Posição {self.posicao} - {self.piloto.numero_piloto} - {self.piloto.nome}" 
 
-def cadastrar_piloto(request):
-    if request.method == 'POST':
-        form = CadastrarPilotoForm(request.POST)
-        if form.is_valid():
-            nome = form.cleaned_data['nome']
-            numero_piloto = form.cleaned_data['numero_piloto']
-            moto = form.cleaned_data['moto']
-            categoria = form.cleaned_data['categoria']
+# resultado_piloto.html
 
-            if Piloto.objects.filter(Q(nome=nome) | Q(numero_piloto=numero_piloto)).exists():
-                messages.error(request, 'Já existe um piloto com esse nome ou número.')
-            else:
-                Piloto.objects.create(
-                    nome=nome,
-                    numero_piloto=numero_piloto,
-                    moto=moto,
-                    categoria=categoria
-                )
-                messages.success(request, 'Piloto cadastrado com sucesso.')
-                return redirect('cadastrar_piloto')
-    else:
-        form = CadastrarPilotoForm()
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <style>
+    /* Corrige contraste no cabeçalho da tabela */
+    thead.table-dark th {
+        background-color: #343a40 !important;
+        color: white !important;
+    }
 
-    return render(request, 'cadastrar_piloto.html', {'form': form})
+    /* Garante que o fundo da tabela não interfira */
+    table {
+        border-collapse: collapse;
+        width: 100%;
+    }
 
+    th, td {
+        border: 1px solid #dee2e6;
+        padding: 8px;
+        text-align: center;
+    }
+
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+    }
+</style>
+
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="60">
+    <title>Resultados por Piloto</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+
+<div class="container my-4">
+    <h1 class="mb-4">Resultados por Piloto</h1>
+
+    {% for piloto in piloto_detail %}
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    Piloto: {{ piloto.piloto.nome }} | Nº: {{ piloto.numero_piloto }} | Categoria: {{ piloto.piloto.categoria }}
+                </h5>
+            </div>
+            <div class="card-body bg-white">
+                <table class="table table-striped table-bordered table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Largada</th>
+                            <th>Chegada</th>
+                            <th>Tempo de Volta</th>
+                            <th>Dif. da Volta 1</th>
+                            <th>Adiantado/Atrasado</th>
+                            <th>Pontos Perdidos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for v in piloto.voltas %}
+                        <tr {% if v.status == 'adiantado' %}class="table-danger"{% endif %}>
+                            <td>{{ v.horario_largada }}</td>
+                            <td>{{ v.horario_chegada }}</td>
+                            <td>{{ v.tempo_volta }}</td>
+                            <td>{{ v.dif_volta1_str }}</td>
+                            <td>{{ v.status|capfirst }}</td>
+                            <td>{{ v.pontos }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <div class="bg-light border rounded p-3 mt-3">
+                    <p class="fw-bold mb-1 text-secondary">
+                        Total Dif. Volta 01: 
+                        <span class="text-dark">{{ piloto.tempo_total }}</span>
+                    </p>
+                    <p class="fw-bold mb-1 text-secondary">
+                        Total Tempo Todas Voltas (Critério de Desempate): 
+                        <span class="text-dark">{{ piloto.tempo_real }}</span>
+                    </p>
+                    <p class="fw-bold mb-0 text-secondary">
+                        Total de Pontos Perdidos: 
+                        <span class="text-dark">{{ piloto.total_pontos }}</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="alert alert-warning">Nenhum resultado disponível no momento.</div>
+    {% endfor %}
+
+</div>
+<div class="container text-center my-4">
+    <a href="{% url 'exportar_resultado_piloto' %}" class="btn btn-danger no-print">
+        📄 Exportar PDF por Piloto
+    </a>
+</div>
+
+</body>
+</html>
