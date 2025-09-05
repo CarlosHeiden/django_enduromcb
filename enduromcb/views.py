@@ -831,3 +831,71 @@ def registrar_chegada02_json(request):
         })
 
     return JsonResponse({"success": False, "error": "Método de requisição inválido."}, status=405)
+
+
+def resultados_parciais(request):
+    resultados_parciais_list = []
+    
+    # Busca todos os pilotos que já registraram alguma volta
+    pilotos_com_resultado = Resultados.objects.values('numero_piloto').distinct()
+
+    for piloto_info in pilotos_com_resultado:
+        numero_piloto = piloto_info['numero_piloto']
+        
+        # Busca a última volta e a primeira volta para os cálculos
+        ultima_volta = Resultados.objects.filter(numero_piloto=numero_piloto).order_by('-id_volta').first()
+        primeira_volta = Resultados.objects.filter(numero_piloto=numero_piloto).order_by('id_volta').first()
+
+        if not ultima_volta:
+            continue
+        
+        # Formatando o tempo da última volta
+        tempo_ultima_volta = ultima_volta.tempo_volta
+        tempo_ultima_volta_str = '{:02d}:{:02d}:{:02d}.{:03d}'.format(
+            int(tempo_ultima_volta.total_seconds() // 3600),
+            int((tempo_ultima_volta.total_seconds() % 3600) // 60),
+            int((tempo_ultima_volta.total_seconds() % 60)),
+            int(tempo_ultima_volta.microseconds / 1000)
+        )
+        
+        # Formatando o tempo da primeira volta
+        tempo_primeira_volta = primeira_volta.tempo_volta
+        tempo_primeira_volta_str = '{:02d}:{:02d}:{:02d}.{:03d}'.format(
+            int(tempo_primeira_volta.total_seconds() // 3600),
+            int((tempo_primeira_volta.total_seconds() % 3600) // 60),
+            int((tempo_primeira_volta.total_seconds() % 60)),
+            int(tempo_primeira_volta.microseconds / 1000)
+        )
+        
+        # Calculando a diferença em relação à primeira volta
+        dif = tempo_ultima_volta - tempo_primeira_volta
+        
+        def formatar_timedelta_com_sinal(td):
+            if td.total_seconds() < 0:
+                return f"- {abs(td.total_seconds()):.3f}"
+            return f"+ {td.total_seconds():.3f}"
+        
+        dif_volta1_str = formatar_timedelta_com_sinal(dif)
+        
+        # Calculando os pontos
+        pontos = 0
+        segundos_arredondado = round(abs(dif.total_seconds()))
+        if dif.total_seconds() < 0:
+            pontos = segundos_arredondado * 3
+        elif dif.total_seconds() > 0:
+            pontos = segundos_arredondado * 1
+
+        resultados_parciais_list.append({
+            'numero_piloto': numero_piloto,
+            'volta': ultima_volta.id_volta,
+            'tempo_volta_01': tempo_primeira_volta_str,
+            'tempo_ultima_volta': tempo_ultima_volta_str,
+            'dif_volta_01_str': dif_volta1_str,
+            'pontos': pontos,
+            'horario_chegada': ultima_volta.horario_chegada 
+        })
+
+    # Ordena a lista pelo horário de chegada da última volta, do mais recente para o mais antigo
+    resultados_parciais_list.sort(key=lambda x: x['horario_chegada'], reverse=True)
+    
+    return render(request, 'resultados_parciais.html', {'resultados': resultados_parciais_list})

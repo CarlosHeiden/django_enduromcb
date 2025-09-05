@@ -31,7 +31,6 @@ urlpatterns = [
     path('registrar_largada03/', views.registrar_largada03, name='registrar_largada03'),
     path('registrar_largada03/json/', views.registrar_largada03_json, name='registrar_largada03_json'),
 
-
-
+    path('resultados-parciais/', views.resultados_parciais, name='resultados_parciais'),
     
 ]

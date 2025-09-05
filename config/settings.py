@@ -78,7 +78,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'enduro02',
+        'NAME': 'enduro_mcb',
         'USER': 'carlos',
         'PASSWORD': 'Ktmsx-350f',
         'HOST': 'localhost',
