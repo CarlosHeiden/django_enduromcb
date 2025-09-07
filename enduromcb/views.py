@@ -208,7 +208,6 @@ def resultados(request):
 
     return render(request, 'resultados.html', context)
 
-
 def resultados_por_categorias(request):
     categorias = Categoria.objects.all()
     resultados_por_categoria = {cat: [] for cat in categorias}
@@ -697,8 +696,6 @@ def exportar_resultados_pdf(request):
     HTML(string=html_string).write_pdf(caminho_pdf)
 
     return FileResponse(open(caminho_pdf, 'rb'), content_type='application/pdf')
-
-
 
 def registrar_largada03(request):
     """
