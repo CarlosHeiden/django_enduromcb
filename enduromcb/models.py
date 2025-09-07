@@ -66,4 +66,14 @@ class OrdemLargada(models.Model):
 
     def __str__(self):
         return f"Posição {self.posicao} - {self.piloto.numero_piloto} - {self.piloto.nome}" 
+    
+class ConfiguracaoProva(models.Model):
+    numero_voltas = models.IntegerField(default=5, verbose_name="Número de Voltas")
+
+    class Meta:
+        verbose_name = "Configuração da Prova"
+        verbose_name_plural = "Configurações da Prova"
+
+    def __str__(self):
+        return f"Número de Voltas: {self.numero_voltas}"
 

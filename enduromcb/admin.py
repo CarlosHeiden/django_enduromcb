@@ -1,6 +1,6 @@
 from django.contrib import admin
 from import_export.admin import ExportMixin, ImportExportModelAdmin
-from .models import Categoria, Piloto, RegistrarLargada, RegistrarChegada, Resultados, OrdemLargada
+from .models import Categoria, Piloto, RegistrarLargada, RegistrarChegada, Resultados, OrdemLargada, ConfiguracaoProva
 from .resources import OrdemLargadaResource
 
 
@@ -51,3 +51,9 @@ class ResultadosAdmin(ImportExportModelAdmin):
         'tempo_volta', 'tempo_total'
     ]
     search_fields = ['nome', 'numero_piloto', 'categoria']
+
+@admin.register(ConfiguracaoProva)
+class ConfiguracaoProvaAdmin(admin.ModelAdmin):
+    list_display = ['numero_voltas']
+    search_fields = ['numero_voltas']
+    
