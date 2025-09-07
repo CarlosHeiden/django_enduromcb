@@ -15,12 +15,6 @@ from enduromcb.forms import CadastrarPilotoForm, RegistrarChegadaForm, Registrar
 from .models import Categoria, Piloto, RegistrarChegada, RegistrarLargada, Resultados, OrdemLargada, ConfiguracaoProva
 from weasyprint import HTML, CSS
 
-
-
-#from .utils import save_dados_resultados  # se já tem essa função
-
-
-
 os.add_dll_directory(r"C:\Program Files\GTK3-Runtime Win64\bin")
 
 def cadastrar_piloto(request):
