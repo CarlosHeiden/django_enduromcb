@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 import json
 import os
 from enduromcb.forms import CadastrarPilotoForm, RegistrarChegadaForm, RegistrarLargadaForm
-from .models import Categoria, Piloto, RegistrarChegada, RegistrarLargada, Resultados, OrdemLargada
+from .models import Categoria, Piloto, RegistrarChegada, RegistrarLargada, Resultados, OrdemLargada, ConfiguracaoProva
 from weasyprint import HTML, CSS
 
 
@@ -144,27 +144,31 @@ def save_dados_resultados(agora_str, piloto):
 
 def resultados(request):
     resultados_gerais = []
+    pilotos_nao_completaram = []
 
     for piloto in Piloto.objects.all():
+        voltas_prova = ConfiguracaoProva.objects.all()
         voltas = Resultados.objects.filter(numero_piloto=piloto.numero_piloto).order_by('id_volta')
 
-        if voltas.count() <= 1:
+        if voltas.count() < voltas_prova.first().numero_voltas:
+            pilotos_nao_completaram.append({
+                'piloto': piloto,
+                'numero_piloto': piloto.numero_piloto,
+                #'mensagem': 'Piloto não completou a prova'
+            })
             continue
 
         primeira_volta = voltas.first().tempo_volta
-
         total_pontos = 0
         tempo_real_total = timedelta(0)
 
         for i, v in enumerate(voltas):
             tempo_real_total += v.tempo_volta
-
             if i == 0:
-                continue  # não calcula pontos para a volta 1
+                continue
 
             dif = v.tempo_volta - primeira_volta
-            segundos = abs(dif.total_seconds())
-            segundos_arredondado = round(segundos)
+            segundos_arredondado = round(abs(dif.total_seconds()))
 
             if dif.total_seconds() < 0:
                 pontos = segundos_arredondado * 3
@@ -180,28 +184,30 @@ def resultados(request):
             'numero_piloto': piloto.numero_piloto,
             'pontos_perdidos': total_pontos,
             'tempo_real': tempo_real_total,
+            'num_voltas': voltas.count(),
         })
 
-    # Ordenar por pontos e depois por tempo real (critério de desempate)
-    resultados_gerais.sort(key=lambda x: (x['pontos_perdidos'], x['tempo_real']))
+    # Ordenar por número de voltas (desc), depois pontos, depois tempo
+    resultados_gerais.sort(key=lambda x: (-x['num_voltas'], x['pontos_perdidos'], x['tempo_real']))
 
-    # Atribuir posição e detectar empates
+    # Atribuir posição
     for pos, p in enumerate(resultados_gerais, start=1):
         p['position'] = pos
 
-    # Detectar se houve empate em pontos perdidos
-    houve_empate = False
-    for i in range(1, len(resultados_gerais)):
-        if resultados_gerais[i]['pontos_perdidos'] == resultados_gerais[i - 1]['pontos_perdidos']:
-            houve_empate = True
-            break
+    # Detectar empate
+    houve_empate = any(
+        resultados_gerais[i]['pontos_perdidos'] == resultados_gerais[i - 1]['pontos_perdidos']
+        for i in range(1, len(resultados_gerais))
+    )
 
     context = {
         'resultados_gerais': resultados_gerais,
+        'pilotos_nao_completaram': pilotos_nao_completaram,
         'houve_empate': houve_empate,
     }
 
     return render(request, 'resultados.html', context)
+
 
 def resultados_por_categorias(request):
     categorias = Categoria.objects.all()
@@ -243,8 +249,6 @@ def resultados_por_categorias(request):
         'resultados_por_categorias.html',
         {'resultados_por_categoria': resultados_por_categoria}
     )
-
-
 
 def formatar_timedelta_com_sinal(td):
     total_ms = td.total_seconds() * 1000
@@ -524,7 +528,7 @@ def formatar_timedelta_com_sinal(td):
 def exportar_resultado_piloto_pdf(request):
     piloto_detail = []
 
-    for piloto in Piloto.objects.all():
+    for piloto in Piloto.objects.order_by('numero_piloto'):
         resultados = Resultados.objects.filter(numero_piloto=piloto.numero_piloto).order_by('id_volta')
         if not resultados.exists():
             continue
@@ -619,11 +623,19 @@ def formatar_timedelta_com_sinal(td):
 
 def exportar_resultados_pdf(request):
     resultados_gerais = []
+    pilotos_nao_completaram = []
 
     for piloto in Piloto.objects.all():
+        voltas_prova = ConfiguracaoProva.objects.all()
         voltas = Resultados.objects.filter(numero_piloto=piloto.numero_piloto).order_by('id_volta')
-        if voltas.count() <= 1:
-            continue
+
+        if voltas.count() < voltas_prova.first().numero_voltas:
+            pilotos_nao_completaram.append({
+                'piloto': piloto,
+                'numero_piloto': piloto.numero_piloto,
+                #'mensagem': 'Piloto não completou a prova'
+            })
+            continue    
 
         primeira_volta = voltas.first().tempo_volta
         total_pontos = 0
@@ -635,8 +647,7 @@ def exportar_resultados_pdf(request):
                 continue
 
             dif = v.tempo_volta - primeira_volta
-            segundos = abs(dif.total_seconds())
-            segundos_arredondado = round(segundos)
+            segundos_arredondado = round(abs(dif.total_seconds()))
 
             if dif.total_seconds() < 0:
                 pontos = segundos_arredondado * 3
@@ -652,13 +663,17 @@ def exportar_resultados_pdf(request):
             'numero_piloto': piloto.numero_piloto,
             'pontos_perdidos': total_pontos,
             'tempo_real': tempo_real_total,
+            'num_voltas': voltas.count(),
         })
 
-    resultados_gerais.sort(key=lambda x: (x['pontos_perdidos'], x['tempo_real']))
+    # Ordenar por número de voltas (desc), depois pontos, depois tempo
+    resultados_gerais.sort(key=lambda x: (-x['num_voltas'], x['pontos_perdidos'], x['tempo_real']))
 
+    # Atribuir posição
     for pos, p in enumerate(resultados_gerais, start=1):
         p['position'] = pos
 
+    # Detectar empate
     houve_empate = any(
         resultados_gerais[i]['pontos_perdidos'] == resultados_gerais[i - 1]['pontos_perdidos']
         for i in range(1, len(resultados_gerais))
@@ -672,6 +687,7 @@ def exportar_resultados_pdf(request):
         )
 
     html_string = render_to_string('resultados.html', {
+        'pilotos_nao_completaram': pilotos_nao_completaram,
         'resultados_gerais': resultados_gerais,
         'houve_empate': houve_empate,
         'data_geracao': datetime.now().strftime('%d/%m/%Y %H:%M'),
@@ -715,8 +731,6 @@ def registrar_chegada03(request):
     # Passamos sempre uma lista de objetos Piloto para o template
     return render(request, 'registrar_chegada03.html', {'lista_pilotos': pilotos_ordenados})
 
-
-
 def registrar_largada03_json(request):
     """
     Processa o registro de largada via AJAX.
@@ -748,7 +762,6 @@ def registrar_largada03_json(request):
         })
 
     return JsonResponse({"success": False, "error": "Método de requisição inválido."}, status=405)
-
 
 def registrar_chegada03_json(request):
     """
@@ -831,7 +844,6 @@ def registrar_chegada02_json(request):
         })
 
     return JsonResponse({"success": False, "error": "Método de requisição inválido."}, status=405)
-
 
 def resultados_parciais(request):
     resultados_parciais_list = []

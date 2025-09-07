@@ -66,6 +66,7 @@
                     <th>Nome</th>
                     <th>Número</th>
                     <th>Categoria</th>
+                    <th>Voltas</th>
                     <th>Pontos Perdidos</th>
                     {% if resultados_gerais|length > 1 and resultados_gerais|dictsort:"pontos_perdidos"|length != resultados_gerais|length %}
                         <th>Critério de Desempate</th>
@@ -82,6 +83,7 @@
                     </td>
                     <td>{{ r.numero_piloto }}</td>
                     <td>{{ r.piloto.categoria }}</td>
+                    <td>{{ r.num_voltas }}</td>
                     <td>{{ r.pontos_perdidos }}</td>
                     {% if r.exibir_criterio %}
                         <td>{{ r.criterio_desempate }}</td>
@@ -92,6 +94,16 @@
                 {% endfor %}
             </tbody>
         </table>
+        {% if pilotos_nao_completaram %}
+        <h2 class="mt-5">Pilotos que não completaram a prova</h2>
+        <ul class="list-group">
+            {% for p in pilotos_nao_completaram %}
+            <li class="list-group-item text-danger">
+                Nº {{ p.numero_piloto }} - {{ p.piloto.nome }}: {{ p.mensagem }}
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
     </div>
     {% else %}
     <div class="alert alert-warning">Nenhum resultado disponível.</div>
